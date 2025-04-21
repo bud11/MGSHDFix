@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "helper.hpp"
+#include <string>
+#include <string_view>
 
 #include <inipp/inipp.h>
 #include <spdlog/spdlog.h>
@@ -11,7 +13,7 @@ HMODULE unityPlayer;
 
 // Version
 string sFixName = "MGSHDFix";
-string sFixVer = "2.3.1";
+string sFixVer = "2.4.0";
 
 // Logger
 std::shared_ptr<spdlog::logger> logger;
@@ -437,6 +439,18 @@ void CustomResolution()
         uint8_t* MGS2_MGS3_OutputResolution2ScanResult = Memory::PatternScan(baseModule, "80 ?? ?? 00 41 ?? ?? ?? ?? ?? 48 ?? ?? ?? BA ?? ?? ?? ?? 8B ??");
         if (MGS2_MGS3_InternalResolutionScanResult && MGS2_MGS3_OutputResolution1ScanResult && MGS2_MGS3_OutputResolution2ScanResult)
         {
+            uint8_t* MGS2_MGS3_FSR_Result = Memory::PatternScan(baseModule, "83 E8 ?? 74 ?? 83 E8 ?? 74 ?? 83 F8 ?? 75 ?? C7 06");
+
+            if (MGS2_MGS3_FSR_Result){
+                static SafetyHookMid FSRWarningMidHook{};
+                FSRWarningMidHook = safetyhook::create_mid(MGS2_MGS3_FSR_Result,
+                    [](SafetyHookContext& ctx)
+                    {
+                        spdlog::warn("MGS 2 | MGS 3: Custom Resolution: Game is using main launcher's FSR Upscaling resolution options! Unintended side effects (ie pixelization, mipmap issues) may occur!");
+                    });
+                
+            }
+
             // Output resolution 1
             spdlog::info("MG/MG2 | MGS 2 | MGS 3: Custom Resolution: Output 1: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS2_MGS3_OutputResolution1ScanResult - (uintptr_t)baseModule);
             static SafetyHookMid OutputResolution1MidHook{};
@@ -471,6 +485,73 @@ void CustomResolution()
                         *reinterpret_cast<int*>(ctx.rbx + 0x58) = iInternalResY;
                     }
                 });
+            
+            // Replace loading screens with the appropriate resolutions.
+            if (iOutputResY >= 1080) {
+                if (!Memory::PatternScan(baseModule, "5F 34 6B 2E 63 74 78 72 00")) //  _4k.ctxr - Make sure the game is a version with 4k loadingscreens
+                    spdlog::warn("MGS 2 | MGS 3: Custom Resolution: Splashscreens {}: Incompatible game version. Skipping.");
+                else 
+                {
+                    uint8_t* MGS2_MGS3_SplashscreenResult = Memory::PatternScan(baseModule, "FF 15 ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 4C 8D 44 24 ?? 48 8D 54 24 ?? 48 8B 08 48 8B 01 FF 50 ?? 48 8B 58");
+                    if (!MGS2_MGS3_SplashscreenResult)
+                    {
+                        spdlog::error("MGS 2 | MGS 3: Custom Resolution: Splashscreens {}: Pattern scan failed.");
+                    }
+                    else
+                    {
+                        static SafetyHookMid MGS2_MGS3_SplashScreenMidHook{};
+                        MGS2_MGS3_SplashScreenMidHook = safetyhook::create_mid(MGS2_MGS3_SplashscreenResult,
+                            [](SafetyHookContext& ctx)
+                            {
+                                std::string fileName = reinterpret_cast<char*>(ctx.rdx);
+                                if (fileName.ends_with("_720.ctxr")) {
+                                    fileName.replace(fileName.end() - 8, fileName.begin(), iOutputResY >= 2160 ? "4k.ctxr" : 
+                                                                                           iOutputResY >= 1440 ? "wqhd.ctxr":
+                                                                                         /*iOutputResY >= 1080*/ "fhd.ctxr");
+                                    ctx.rdx = reinterpret_cast<uintptr_t>(fileName.c_str());
+                                }
+                            });
+                        spdlog::info("MGS 2 | MGS 3: Custom Resolution: Splashscreens patched at {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS2_MGS3_SplashscreenResult - (uintptr_t)baseModule);
+                    }
+
+                    uint8_t* MGS2_MGS3_LoadingScreenEngScanResult = Memory::PatternScan(baseModule, "48 8D 8C 24 ?? ?? ?? ?? FF 15 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8D 8C 24 ?? ?? ?? ?? FF 15 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8D 8C 24 ?? ?? ?? ?? FF 15 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8D 8C 24"); //    /loading.ctxr 
+                    if (!MGS2_MGS3_LoadingScreenEngScanResult)
+                    {
+                        spdlog::error("MGS 2 | MGS 3: Custom Resolution: Loading Screen (ENG) {}: Pattern scan failed.");
+                    }
+                    else
+                    {
+                        static SafetyHookMid MGS2_MGS3_LoadingScreenEngMidHook{};
+                        MGS2_MGS3_LoadingScreenEngMidHook = safetyhook::create_mid(MGS2_MGS3_LoadingScreenEngScanResult,
+                            [](SafetyHookContext& ctx)
+                            {
+                                ctx.rdx = iOutputResY >= 2160 ? reinterpret_cast<uintptr_t>(&"$/misc/loading/****/loading_4k.ctxr") :
+                                          iOutputResY >= 1440 ? reinterpret_cast<uintptr_t>(&"$/misc/loading/****/loading_wqhd.ctxr") :
+                                        /*iOutputResY >= 1080*/ reinterpret_cast<uintptr_t>(&"$/misc/loading/****/loading_fhd.ctxr");
+                            });
+                        spdlog::info("MGS 2 | MGS 3: Custom Resolution: Loading Screen (ENG) patched at {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS2_MGS3_LoadingScreenEngScanResult - (uintptr_t)baseModule);
+                    }
+
+                    uint8_t* MGS2_MGS3_LoadingScreenJPScanResult = Memory::PatternScan(baseModule, "48 8D 4C 24 ?? FF 15 ?? ?? ?? ?? 48 8D 15 ?? ?? ?? ?? 48 8D 4C 24"); //    /loading_jp.ctxr 
+                    if (!MGS2_MGS3_LoadingScreenJPScanResult)
+                    {
+                        spdlog::error("MGS 2 | MGS 3: Custom Resolution: Loading Screen (JPN) {}: Pattern scan failed.");
+                    }
+                    else
+                    {
+                        static SafetyHookMid MGS2_MGS3_LoadingScreenJPMidHook{};
+                        MGS2_MGS3_LoadingScreenJPMidHook = safetyhook::create_mid(MGS2_MGS3_LoadingScreenJPScanResult,
+                            [](SafetyHookContext& ctx)
+                            {
+                                ctx.rdx = iOutputResY >= 2160 ? reinterpret_cast<uintptr_t>(&"$/misc/loading/****/loading_jp_4k.ctxr") :
+                                          iOutputResY >= 1440 ? reinterpret_cast<uintptr_t>(&"$/misc/loading/****/loading_jp_wqhd.ctxr") :
+                                        /*iOutputResY >= 1080*/ reinterpret_cast<uintptr_t>(&"$/misc/loading/****/loading_jp_fhd.ctxr");
+                            });
+                        spdlog::info("MGS 2 | MGS 3: Custom Resolution: Loading Screen (JP) patched at {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS2_MGS3_LoadingScreenJPScanResult - (uintptr_t)baseModule);
+                    }
+                }
+
+            }
         }
         else if (!MGS2_MGS3_InternalResolutionScanResult || !MGS2_MGS3_OutputResolution1ScanResult || !MGS2_MGS3_OutputResolution2ScanResult)
         {
@@ -569,7 +650,7 @@ void CustomResolution()
             {
                 spdlog::info("MG/MG2 | MGS 2 | MGS 3: Windowed Framebuffer: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS2_MGS3_WindowedFramebufferFixScanResult - (uintptr_t)baseModule);
                 Memory::PatchBytes((uintptr_t)MGS2_MGS3_WindowedFramebufferFixScanResult, "\xEB", 1);
-                if (eGameType == MgsGame::MGS3)
+                if (eGameType == MgsGame::MGS3 || eGameType == MgsGame::MG)
                     Memory::PatchBytes((uintptr_t)MGS2_MGS3_WindowedFramebufferFixScanResult + 0x2A, "\xEB", 1);
                 if (eGameType == MgsGame::MGS2)
                     Memory::PatchBytes((uintptr_t)MGS2_MGS3_WindowedFramebufferFixScanResult + 0x27, "\xEB", 1);
