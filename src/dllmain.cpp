@@ -1247,6 +1247,26 @@ void LauncherConfigOverride()
         }
         return;
     }
+    //Fixes a windows crash error message that sometimes appears when exiting through the main menu (which normally reopens the launcher.)
+    else if (bLauncherConfigSkipLauncher && (eGameType == MgsGame::MG || eGameType == MgsGame::MGS2 || eGameType == MgsGame::MGS3)) {
+        uint8_t* ShouldStartLauncher_mbResult = Memory::PatternScan(baseModule, "85 DB 74 ?? 48 83 C4");
+        if (ShouldStartLauncher_mbResult)
+        {
+            static SafetyHookMid ShouldStartLauncher_mbHook{};
+            ShouldStartLauncher_mbHook = safetyhook::create_mid(ShouldStartLauncher_mbResult,
+                [](SafetyHookContext& ctx)
+                {
+                    spdlog::info("MG/MG2 | MGS 2 | MGS 3: Exit crash fixed.");
+                    ctx.rbx = 0; //ebx -> rbx
+                });
+        }
+        else
+        {
+            spdlog::error("MG/MG2 | MGS 2 | MGS 3: Launcher Config: SkipLauncher - exit crashfix patternscan failed!");
+        }
+    }
+    
+
 
     // Certain config such as language/button style is normally passed from launcher to game via arguments
     // When game EXE gets ran directly this config is left at default (english game, xbox buttons)
