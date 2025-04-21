@@ -255,15 +255,17 @@ void Logging()
     // spdlog initialisation
     {
         try {
+            if(!std::filesystem::is_directory("logs"))
+                std::filesystem::create_directory("logs"); //create a "logs" subdirectory in the game folder to keep the main directory tidy.
             // Create 10MB truncated logger
-            logger = std::make_shared<spdlog::logger>(sLogFile, std::make_shared<size_limited_sink<std::mutex>>(sExePath.string() + sLogFile, 10 * 1024 * 1024));
+            logger = std::make_shared<spdlog::logger>(sLogFile, std::make_shared<size_limited_sink<std::mutex>>(sExePath.string() + "logs\\" + sLogFile, 10 * 1024 * 1024));
             spdlog::set_default_logger(logger);
 
             spdlog::flush_on(spdlog::level::debug);
             spdlog::info("----------");
             spdlog::info("{} v{} loaded.", sFixName.c_str(), sFixVer.c_str());
             spdlog::info("----------");
-            spdlog::info("Log file: {}", sExePath.string() + sLogFile);
+            spdlog::info("Log file: {}", sExePath.string() + "logs\\" + sLogFile);
             spdlog::info("----------");
 
             // Log module details
