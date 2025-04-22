@@ -38,6 +38,7 @@ bool bBorderlessMode;
 bool bFramebufferFix;
 bool bSkipIntroLogos;
 int iAnisotropicFiltering;
+bool bDisableTextureFiltering;
 int iTextureBufferSizeMB;
 bool bMouseSensitivity;
 float fMouseSensitivityXMulti;
@@ -313,6 +314,7 @@ void ReadConfig()
     inipp::get_value(ini.sections["Internal Resolution"], "Width", iInternalResX);
     inipp::get_value(ini.sections["Internal Resolution"], "Height", iInternalResY);
     inipp::get_value(ini.sections["Anisotropic Filtering"], "Samples", iAnisotropicFiltering);
+    inipp::get_value(ini.sections["Disable Texture Filtering"], "DisableTextureFiltering", bDisableTextureFiltering);
     inipp::get_value(ini.sections["Framebuffer Fix"], "Enabled", bFramebufferFix);
     inipp::get_value(ini.sections["Skip Intro Logos"], "Enabled", bSkipIntroLogos);
     inipp::get_value(ini.sections["Mouse Sensitivity"], "Enabled", bMouseSensitivity);
@@ -361,6 +363,7 @@ void ReadConfig()
         iAnisotropicFiltering = std::clamp(iAnisotropicFiltering, 0, 16);
         spdlog::info("Config Parse: iAnisotropicFiltering value invalid, clamped to {}", iAnisotropicFiltering);
     }
+    spdlog::info("Config Parse: bDisableTextureFiltering: {}", bDisableTextureFiltering);
     spdlog::info("Config Parse: bFramebufferFix: {}", bFramebufferFix);
     spdlog::info("Config Parse: bSkipIntroLogos: {}", bSkipIntroLogos);
     spdlog::info("Config Parse: bMouseSensitivity: {}", bMouseSensitivity);
@@ -993,12 +996,12 @@ void Miscellaneous()
         }
     }
 
-    if (iAnisotropicFiltering > 0 && (eGameType == MgsGame::MGS3 || eGameType == MgsGame::MGS2))
+    if ((bDisableTextureFiltering || iAnisotropicFiltering > 0) && (eGameType == MgsGame::MGS3 || eGameType == MgsGame::MGS2))
     {
         uint8_t* MGS3_SetSamplerStateInsnScanResult = Memory::PatternScan(baseModule, "48 8B ?? ?? ?? ?? ?? 44 39 ?? ?? 38 ?? ?? ?? 74 ?? 44 89 ?? ?? ?? ?? ?? ?? EB ?? 48 ?? ??");
         if (MGS3_SetSamplerStateInsnScanResult)
         {
-            spdlog::info("MGS 2 | MGS 3: Anisotropic Filtering: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS3_SetSamplerStateInsnScanResult - (uintptr_t)baseModule);
+            spdlog::info("MGS 2 | MGS 3: Texture Filtering: Address is {:s}+{:x}", sExeName.c_str(), (uintptr_t)MGS3_SetSamplerStateInsnScanResult - (uintptr_t)baseModule);
 
             static SafetyHookMid SetSamplerStateInsnXMidHook{};
             SetSamplerStateInsnXMidHook = safetyhook::create_mid(MGS3_SetSamplerStateInsnScanResult + 0x7,
@@ -1009,13 +1012,14 @@ void Miscellaneous()
 
                     // Override filter mode in r9d with aniso value and run compare from orig game code
                     // Game code will then copy in r9d & update D3D etc when r9d is different to existing value
-                    ctx.r9 = 0x55;
+                    //0x1 = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR (Linear mips is essentially perspective correction.) 0x55 = D3D11_FILTER_ANISOTROPIC
+                    ctx.r9 = bDisableTextureFiltering ? 0x1 : 0x55;
                 });
 
         }
         else if (!MGS3_SetSamplerStateInsnScanResult)
         {
-            spdlog::error("MGS 2 | MGS 3: Anisotropic Filtering: Pattern scan failed.");
+            spdlog::error("MGS 2 | MGS 3: Texture Filtering: Pattern scan failed.");
         }
     }
 
