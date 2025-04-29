@@ -825,7 +825,7 @@ void CompileGeometryShader()
     }
 
     if (iVectorLineScale < 1) {
-        iVectorLineScale = 512;
+        iVectorLineScale = 480;
     }
 
 
