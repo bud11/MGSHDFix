@@ -47,6 +47,8 @@ bool bMouseSensitivity;
 float fMouseSensitivityXMulti;
 float fMouseSensitivityYMulti;
 bool bDisableCursor;
+bool bDisableVectorLineFix;
+int iVectorLineScale;
 
 // Launcher ini variables
 bool bLauncherConfigSkipLauncher = false;
@@ -318,6 +320,8 @@ void ReadConfig()
     inipp::get_value(ini.sections["Internal Resolution"], "Height", iInternalResY);
     inipp::get_value(ini.sections["Anisotropic Filtering"], "Samples", iAnisotropicFiltering);
     inipp::get_value(ini.sections["Framebuffer Fix"], "Enabled", bFramebufferFix);
+    inipp::get_value(ini.sections["Vector Line Fix"], "Disable", bDisableVectorLineFix);
+    inipp::get_value(ini.sections["Vector Line Fix"], "Line Scale", iVectorLineScale);
     inipp::get_value(ini.sections["Skip Intro Logos"], "Enabled", bSkipIntroLogos);
     inipp::get_value(ini.sections["Mouse Sensitivity"], "Enabled", bMouseSensitivity);
     inipp::get_value(ini.sections["Mouse Sensitivity"], "X Multiplier", fMouseSensitivityXMulti);
@@ -366,6 +370,8 @@ void ReadConfig()
         spdlog::info("Config Parse: iAnisotropicFiltering value invalid, clamped to {}", iAnisotropicFiltering);
     }
     spdlog::info("Config Parse: bFramebufferFix: {}", bFramebufferFix);
+    spdlog::info("Config Parse: bDisableVectorLineFix: {}", bDisableVectorLineFix);
+    spdlog::info("Config Parse: iVectorLineScale: {}", iVectorLineScale);
     spdlog::info("Config Parse: bSkipIntroLogos: {}", bSkipIntroLogos);
     spdlog::info("Config Parse: bMouseSensitivity: {}", bMouseSensitivity);
     spdlog::info("Config Parse: fMouseSensitivityXMulti: {}", fMouseSensitivityXMulti);
@@ -692,21 +698,9 @@ void ScaleEffects()
 }
 
 
-
-
-
-
-
-
-
-
-
-
 ////////////////////////////
 ////////////////////////////   START OF VECTOR LINES FIX
 ////////////////////////////
-
-
 
 
 
@@ -796,9 +790,9 @@ bool MGS23_VectorLine_FixMethod2(void* global_struct)
             auto result = CreateGeometryShader(D3DDeviceHandle, global_shader_bytecode_pointer, global_shader_blob_bytecode_size, NULL, &usable_shader_handle);
 
             if (FAILED(result))
-                 spdlog::error("Failed to create geometry shader on device");
+                 spdlog::error("MGS23_VectorLine_FixMethod2: Failed to create geometry shader on device");
             else
-                spdlog::error("Created geometry shader on device");
+                spdlog::info("MGS23_VectorLine_FixMethod2: Successfully created geometry shader on device.");
         }
     }
 
@@ -818,7 +812,7 @@ void CompileGeometryShader()
     HMODULE d3dcompiler = LoadLibraryA("d3dcompiler_43.dll");
     if (!d3dcompiler)
     {
-        spdlog::error("Failed to load d3dcompiler_43.dll");
+        spdlog::error("CompileGeometryShader: Failed to load d3dcompiler_43.dll");
         return;
     }
 
@@ -826,10 +820,13 @@ void CompileGeometryShader()
     pD3DCompile D3DCompileFunc = reinterpret_cast<pD3DCompile>(GetProcAddress(d3dcompiler, "D3DCompile"));
     if (!D3DCompileFunc)
     {
-        spdlog::error("Failed to get address for D3DCompile");
+        spdlog::error("CompileGeometryShader: Failed to get address for D3DCompile");
         return;
     }
 
+    if (iVectorLineScale < 1) {
+        iVectorLineScale = 512;
+    }
 
 
 
@@ -860,7 +857,7 @@ void CompileGeometryShader()
             void GS_LineToQuad(line VS_OUTPUT input[2], inout TriangleStream<GS_OUTPUT> OutputStream)
             {
 
-                float thicknessFraction = 1.0f / 448.0f;       //   <---------------------------------------------       THICKNESS
+                float thicknessFraction = 1.0f / 512.0f;       //   <---------------------------------------------       THICKNESS
     
                 float4 p0_clip = input[0].Position;
                 float4 p1_clip = input[1].Position;
@@ -957,12 +954,12 @@ void CompileGeometryShader()
             void* bufferPtr = getBufferPointer(blobPtr);
             SIZE_T bufferSize = getBufferSize(blobPtr);
 
-            spdlog::error("Shader compile failed with error: {}", std::string(static_cast<char*>(bufferPtr), bufferSize));
+            spdlog::error("CompileGeometryShader: Shader compile failed with error: {}", std::string(static_cast<char*>(bufferPtr), bufferSize));
 
         }
         else
         {
-            spdlog::error("Shader compile failed with HRESULT: 0x{:08X}", hr);
+            spdlog::error("CompileGeometryShader: Shader compile failed with HRESULT: 0x{:08X}", hr);
         }
         return;
     }
@@ -989,6 +986,9 @@ void CompileGeometryShader()
 
 
 void VectorLineFix() {
+    if (bDisableVectorLineFix || !(eGameType == MgsGame::MGS3 || eGameType == MgsGame::MGS2)) {
+        return;
+    }
 
 
     //these patches were primarily written for mgs2, but it seems like they work for both 2 and 3 just fine
@@ -1034,23 +1034,9 @@ void VectorLineFix() {
 }
 
 
-
-
-
-
 ////////////////////////////
 ////////////////////////////   END OF LINES FIX
 ////////////////////////////
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1702,12 +1688,6 @@ bool mainThreadFinished = false;
 
 DWORD __stdcall Main(void*)
 {
-
-
-
-
-
-
     Logging();
     ReadConfig();
     if (DetectGame())
