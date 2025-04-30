@@ -26,6 +26,7 @@ This is a fix that adds custom resolutions, ultrawide support and much more to t
 - Adjustable anisotropic filtering (MGS2/MGS3).
 - Increased texture size limits (MG1/MG2/MGS3).
 - Fixed water surface rendering (MGS3). See [PR #71](https://github.com/Lyall/MGSHDFix/pull/71) for a breakdown of the issue.
+- Fixed vector effects / line based rendering scaling (ie rain, lasers, bullet trails.) [PR #140](https://github.com/Lyall/MGSHDFix/pull/140)
 
 ## Installation
 - Grab the latest release of MGSHDFix from [here.](https://github.com/Lyall/MGSHDFix/releases)
@@ -45,13 +46,11 @@ This list will contain bugs which may or may not be fixed.
 ### MGS 2
 - Strength of post-processing may be reduced at higher resolutions. ([#35](https://github.com/Lyall/MGSHDFix/issues/35))
 - Various visual issues when using the experimental HUD fix. ([#41](https://github.com/Lyall/MGSHDFix/issues/41))
-- Vector based graphic effects (such as rain) do not get scaled up at higher resolutions. ([#90](https://github.com/Lyall/MGSHDFix/issues/90) & [#96](https://github.com/Lyall/MGSHDFix/issues/96))
 
 ### MGS 3
 - Strength of post-processing may be reduced at higher resolutions. ([#35](https://github.com/Lyall/MGSHDFix/issues/35))
 - Various visual issues when using the experimental HUD fix. ([#41](https://github.com/Lyall/MGSHDFix/issues/41))
-- Vector based graphic effects (such as rain) do not get scaled up at higher resolutions. ([#90](https://github.com/Lyall/MGSHDFix/issues/90) & [#96](https://github.com/Lyall/MGSHDFix/issues/96))
-  
+
 ## Screenshots
 
 | ![ezgif-3-82fd6eedda](https://github.com/Lyall/MGSHDFix/assets/695941/b01453c7-b4ee-4903-bd34-340371873ecb) |
