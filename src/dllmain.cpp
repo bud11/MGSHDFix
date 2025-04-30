@@ -48,7 +48,7 @@ float fMouseSensitivityXMulti;
 float fMouseSensitivityYMulti;
 bool bDisableCursor;
 bool bDisableVectorLineFix;
-int iVectorLineScale;
+double iVectorLineScale;
 
 // Launcher ini variables
 bool bLauncherConfigSkipLauncher = false;
@@ -825,8 +825,16 @@ void CompileGeometryShader()
     }
 
     if (iVectorLineScale < 1) {
-        iVectorLineScale = 480;
+        spdlog::info("CompileGeometryShader: Invalid line scale! Defaulting to 360");
+        iVectorLineScale = 360;
     }
+    else {
+        spdlog::info("CompileGeometryShader: Line Scale before: {}", iVectorLineScale);
+    }
+    iVectorLineScale = round(iCurrentResY / iVectorLineScale);
+    spdlog::info("CompileGeometryShader: Target Pixel Width = : {}", iVectorLineScale);
+    iVectorLineScale = (iCurrentResY / iVectorLineScale);
+    spdlog::info("CompileGeometryShader: Line Scale after rounding: {}", iVectorLineScale);
 
 
 
