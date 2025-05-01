@@ -14,6 +14,8 @@ HMODULE unityPlayer;
 // Version
 string sFixName = "MGSHDFix";
 string sFixVer = "2.4.0";
+int iConfigVersion = 1; //increment this when making config changes, along with the number at the bottom of the config file
+                        //that way we can sanity check to ensure people don't have broken/disabled features due to old config files.
 
 // Logger
 std::shared_ptr<spdlog::logger> logger;
@@ -304,6 +306,18 @@ void ReadConfig()
     else {
         spdlog::info("Config file: {}", sExePath.string() + sConfigFile);
         ini.parse(iniFile);
+    }
+
+    int loadedConfigVersion;
+    inipp::get_value(ini.sections["Config Version"], "Version", loadedConfigVersion);
+    if (loadedConfigVersion != iConfigVersion) {
+        AllocConsole();
+        FILE* dummy;
+        freopen_s(&dummy, "CONOUT$", "w", stdout);
+        std::cout << "" << sFixName.c_str() << " v" << sFixVer.c_str() << " loaded." << std::endl;
+        std::cout << "MGSHDFix CONFIG ERROR: Outdated config file!" << std::endl;
+        std::cout << "MGSHDFix CONFIG ERROR: Please install -all- the files from the latest release!" << std::endl;
+        FreeLibraryAndExitThread(baseModule, 1);
     }
 
     // Grab desktop resolution
